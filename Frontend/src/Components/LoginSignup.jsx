@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import gsap from "gsap";
 import "../Utils/LoginSignup.css"; 
+import SSSIHL from "../img/SSSIHL.png";
 
 const API_URL = "http://localhost:5000";
 
@@ -55,8 +56,12 @@ const LoginSignup = () => {
     return (
         <div className={`container ${isSignup ? "signup" : ""}`}>
             <div className="shape">
+                <img className="img0" src={SSSIHL} alt="sssihl" />
+                <p className="h1">
+                {isSignup ? "Already have an account? " : "Don't have an account?"}   
+                </p>
                 <p className="toggle" onClick={() => setIsSignup(!isSignup)}>
-                    {isSignup ? "Already have an account? Login" : "Don't have an account? Sign up"}
+                    {isSignup ? " Login" : " Sign up"}
                 </p>
             </div>
             <div className="forms">

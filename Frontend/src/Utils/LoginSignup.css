@@ -70,14 +70,21 @@
   
   .toggle {
     position: absolute;
-    bottom: 220px;
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 120px;
+    left: 38%;
+    /* transform: translateX(-50%); */
     cursor: pointer;
     color: #ffffff;
-    font-weight: bold;
+    font-weight: bolder;
+    font-size: 20px;
     z-index: 3;
+    transition: transform 0.3s, color 0.3s;
   }
+
+  .toggle:hover {
+    color: #000000; /* Change to another bright color on hover */
+    transform: scale(1.2); /* Slightly enlarge the icon on hover */
+}
   
   /* Moving Shape */
   .shape {
@@ -106,4 +113,21 @@
     font-size: 1.5rem;
     font-weight: bold;
     text-align: center;
+  }
+
+  .img0{
+    position:absolute;
+    height: 40%;
+    width: 50%;
+    left: 22%;
+    bottom: 35%;
+  }
+
+  .h1{
+    color: #fff;
+    font-size:15px;
+    font-weight: bold;
+    position:absolute;
+    left: 27%;
+    bottom: 32%;
   }
