@@ -10,8 +10,10 @@ import Discuss from "./Discuss";
 import Post from "./Post";
 import Question from "./Question";
 import "../Utils/Dashboard.css";
+
 export default function Dashboard() {
   const [darkMode, setDarkMode] = React.useState(false);
+ // const navigate = useNavigate(); // For programmatic navigation
 
   const theme = createTheme({
     palette: {
@@ -29,22 +31,20 @@ export default function Dashboard() {
   };
 
   return (
-    
     <ThemeProvider theme={theme}>
-    
       <AppBar position="static" sx={{ backgroundColor: darkMode ? "#121212" : "#fff" }}>
         <Toolbar>
           <Box sx={{ display: "flex", gap: 3, flexGrow: 1 }}>
-            <Button color="inherit" component={Link} to="home">
+            <Button color="inherit" component={Link} to="/home">
               Home
             </Button>
-            <Button color="inherit" component={Link} to="question">
+            <Button color="inherit" component={Link} to="/question">
               Question
             </Button>
-            <Button color="inherit" component={Link} to="discuss">
+            <Button color="inherit" component={Link} to="/discuss">
               Discuss
             </Button>
-            <Button color="inherit" component={Link} to="post">
+            <Button color="inherit" component={Link} to="/post">
               Post
             </Button>
           </Box>
@@ -55,19 +55,19 @@ export default function Dashboard() {
         </Toolbar>
       </AppBar>
 
+      
+
       <Box component="main" sx={{ p: 3 }}>
         <Routes>
-          <Route index element={<Typography variant="h4" align="center">Welcome! The dashboard should come here!!</Typography>} />
-          <Route path="home" element={<Home />} />
-          <Route path="problem" element={<Problem />} />
-          <Route path="discuss" element={<Discuss />} />
-          <Route path="post" element={<Post />} />
-          <Route path="question" element={<Question />} />
+          <Route path="/" element={<Typography variant="h4" align="center">Welcome to Dashboard!</Typography>} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/problem" element={<Problem />} />
+          <Route path="/discuss" element={<Discuss />} />
+          <Route path="/post" element={<Post />} />
+          <Route path="/question" element={<Question />} />
           <Route path="*" element={<Typography variant="h4" align="center">Jai Sai Ram, Page Not Found</Typography>} />
         </Routes>
       </Box>
-   
     </ThemeProvider>
-    
   );
 }
