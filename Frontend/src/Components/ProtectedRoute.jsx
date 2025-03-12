@@ -1,14 +1,11 @@
-import React from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import React from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 const ProtectedRoute = () => {
-    const authToken = localStorage.getItem("authToken");
+  const token = localStorage.getItem('token'); // Check if token exists
+  const location = useLocation();
 
-<<<<<<< HEAD
-    return authToken ? <Outlet /> : <Navigate to="/" />;
-=======
-    return authToken ? <Outlet /> : <Navigate to="/"  replace/>;
->>>>>>> master
+  return token ? <Outlet /> : <Navigate to="/" state={{ from: location }} replace />;
 };
 
 export default ProtectedRoute;

@@ -1,8 +1,5 @@
 import * as React from "react";
-<<<<<<< HEAD
-=======
 import { useNavigate } from 'react-router-dom';
->>>>>>> master
 import { Routes, Route, Link } from "react-router-dom";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import {
@@ -27,11 +24,6 @@ import Question from "./Question";
 import "../Utils/Dashboard.css";
 
 export default function Dashboard() {
-<<<<<<< HEAD
-  const [darkMode, setDarkMode] = React.useState(false);
-  const [anchorElUser, setAnchorElUser] = React.useState(null);
-
-=======
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = React.useState(false);
   const [anchorElUser, setAnchorElUser] = React.useState(null);
@@ -41,7 +33,6 @@ export default function Dashboard() {
     navigate('/', { replace: true }); // Redirect to login page
   };
 
->>>>>>> master
   const theme = createTheme({
     palette: {
       mode: darkMode ? "dark" : "light",
@@ -67,15 +58,6 @@ export default function Dashboard() {
 
   return (
     <ThemeProvider theme={theme}>
-<<<<<<< HEAD
-      <AppBar position="static" sx={{ backgroundColor: darkMode ? "#121212" : "#fff" }}>
-        <Toolbar>
-          <Box sx={{ display: "flex", gap: 3, flexGrow: 1 }}>
-            <Button color="inherit" component={Link} to="/home">Home</Button>
-            <Button color="inherit" component={Link} to="/question">Question</Button>
-            <Button color="inherit" component={Link} to="/discuss">Discuss</Button>
-            <Button color="inherit" component={Link} to="/post">Post</Button>
-=======
       <AppBar position="absolute" sx={{ backgroundColor: darkMode ? "#121212" : "#fff" }}>
         <Toolbar>
           <Box sx={{ display: "flex", gap: 3, flexGrow: 1 }}>
@@ -83,7 +65,6 @@ export default function Dashboard() {
             <Button color="inherit" component={Link} to="/Dashboard/Question">Question</Button>
             <Button color="inherit" component={Link} to="/Dashboard/Discuss">Discuss</Button>
             <Button color="inherit" component={Link} to="/Dashboard/Post">Post</Button>
->>>>>>> master
           </Box>
 
           <IconButton onClick={handleThemeChange} color="inherit">
@@ -115,11 +96,7 @@ export default function Dashboard() {
             >
 
               <MenuItem onClick={handleCloseUserMenu}>Account</MenuItem>
-<<<<<<< HEAD
-              <MenuItem onClick={handleCloseUserMenu}>Logout</MenuItem>
-=======
               <MenuItem onClick={handleLogout}>Logout</MenuItem>
->>>>>>> master
             </Menu>
           </Box>
         </Toolbar>
