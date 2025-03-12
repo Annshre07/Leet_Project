@@ -1,4 +1,3 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./Components/ProtectedRoute";
 import Dashboard from "./Components/Dashboard";
 import LoginSignup from "./Components/LoginSignup";
