@@ -1,5 +1,6 @@
 /* General styles for the dashboard */
 .Dashboard {
+<<<<<<< HEAD
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -78,3 +79,85 @@
       gap: 10px;
   }
 }
+=======
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-color, #f9f9f9);
+    overflow: hidden;
+  }
+  
+  /* AppBar styles */
+  .MuiAppBar-root {
+  
+    background-color: var(--appbar-bg, #fff) !important;
+    color: var(--appbar-text, #000000) !important;
+  }
+  
+  /* Toolbar styles */
+  .MuiToolbar-root {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+  }
+  
+  /* Navigation buttons */
+  .NavButtons {
+    display: flex;
+    gap: 15px;
+  }
+  
+  .NavButtons button {
+    color: inherit;
+    text-transform: none;
+    font-size: 16px;
+    transition: color 0.3s;
+  }
+  
+  .NavButtons button:hover {
+    color: #007bff;
+  }
+  
+  /* Theme toggle button */
+  .ThemeToggle {
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Main content box */
+  .MainContent {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: var(--background-color, #fff);
+  }
+  
+  /* Centered welcome message */
+  .WelcomeMessage {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .MuiToolbar-root {
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+  
+    .NavButtons {
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+  }
+  
+>>>>>>> master
