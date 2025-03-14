@@ -1,7 +1,11 @@
 import * as React from "react";
 import { useNavigate } from 'react-router-dom';
-import { Routes, Route, Link } from "react-router-dom";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { Link } from "react-router-dom";
+// import { createTheme } from "@mui/material/styles";
+import Card from '@mui/material/Card';
+import CardActions from '@mui/material/CardActions';
+import CardContent from '@mui/material/CardContent';
+import CardMedia from '@mui/material/CardMedia';
 import {
   AppBar,
   Toolbar,
@@ -16,12 +20,8 @@ import {
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import Home from "./Home";
-import Problem from "./Problem";
-import Discuss from "./Discuss";
-import Post from "./Post";
-import Question from "./Question";
 import "../Utils/Dashboard.css";
+import java from "../img/java.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -29,20 +29,9 @@ export default function Dashboard() {
   const [anchorElUser, setAnchorElUser] = React.useState(null);
 
   const handleLogout = () => {
-    localStorage.removeItem('token'); // Remove token
+    localStorage.removeItem('authToken'); // Remove token
     navigate('/', { replace: true }); // Redirect to login page
   };
-
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? "dark" : "light",
-      primary: { main: "#fff" },
-      background: {
-        default: darkMode ? "#121212" : "#fff",
-        paper: darkMode ? "#121212" : "#fff",
-      },
-    },
-  });
 
   const handleThemeChange = () => {
     setDarkMode(!darkMode);
@@ -57,11 +46,10 @@ export default function Dashboard() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
+    <div className="Dashboard">
       <AppBar position="absolute" sx={{ backgroundColor: darkMode ? "#121212" : "#fff" }}>
         <Toolbar>
           <Box sx={{ display: "flex", gap: 3, flexGrow: 1 }}>
-            <Button color="inherit" component={Link} to="/Dashboard/Home">Home</Button>
             <Button color="inherit" component={Link} to="/Dashboard/Question">Question</Button>
             <Button color="inherit" component={Link} to="/Dashboard/Discuss">Discuss</Button>
             <Button color="inherit" component={Link} to="/Dashboard/Post">Post</Button>
@@ -101,18 +89,28 @@ export default function Dashboard() {
           </Box>
         </Toolbar>
       </AppBar>
+      
 
-      <Box component="main" sx={{ p: 3 }}>
-        <Routes>
-          <Route path="/" element={<Typography variant="h4" align="center">Welcome to Dashboard!</Typography>} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/problem" element={<Problem />} />
-          <Route path="/discuss" element={<Discuss />} />
-          <Route path="/post" element={<Post />} />
-          <Route path="/question" element={<Question />} />
-          <Route path="*" element={<Typography variant="h4" align="center">Jai Sai Ram, Page Not Found</Typography>} />
-        </Routes>
-      </Box>
-    </ThemeProvider>
+      <Card sx={{ maxWidth: 345 }}>
+      <CardMedia
+        component="img"
+        alt="green iguana"
+        height="140"
+        src={java}
+      />
+      <CardContent>
+        <Typography gutterBottom variant="h5" component="div">
+          JAVA
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          factorial of a number
+        </Typography>
+      </CardContent>
+      <CardActions>
+        <Button size="small">Share</Button>
+        <Button size="small">Learn More</Button>
+      </CardActions>
+    </Card>
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import '../Utils/Question.css';
 import {
   Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead,
   TablePagination, TableRow, TextField, Dialog, DialogActions,
@@ -83,12 +84,14 @@ export default function Question() {
   };
 
   return (
+    <div className='Question'>
     <Paper sx={{ width: '100%', overflow: 'hidden', padding: 2 }}>
       <Button variant="contained" color="primary" onClick={handleClickOpen}>
         Add Question
       </Button>
 
-      {questions.length === 0 ? (
+      {questions.length === 0 ? 
+      (
         <p>No questions available.</p>
       ) : (
         <TableContainer sx={{ maxHeight: 440 }}>
@@ -141,5 +144,6 @@ export default function Question() {
         </DialogActions>
       </Dialog>
     </Paper>
+    </div>
   );
 }

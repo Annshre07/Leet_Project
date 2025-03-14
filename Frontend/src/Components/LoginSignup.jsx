@@ -34,7 +34,7 @@ const LoginSignup = () => {
             const response = await axios.post(`${API_URL}/signup`, signupData);
             localStorage.setItem("authToken", response.data.token);
             localStorage.setItem("user", JSON.stringify(response.data.user));
-            navigate("/dashboard");  // ✅ Navigate immediately after successful signup
+            navigate("/Dashboard");  // ✅ Navigate immediately after successful signup
         } catch (error) {
             console.error("Signup Error:", error.response?.data?.message || error.message);
             alert(error.response?.data?.message || "Signup failed");
@@ -47,7 +47,7 @@ const LoginSignup = () => {
             const response = await axios.post(`${API_URL}/login`, loginData);
             localStorage.setItem("authToken", response.data.token);
             localStorage.setItem("user", JSON.stringify(response.data.user));
-            navigate("/dashboard");  // ✅ Navigate immediately after successful login
+            navigate("/Dashboard");  // ✅ Navigate immediately after successful login
         } catch (error) {
             console.error("Login Error:", error.response?.data?.message || error.message);
             alert(error.response?.data?.message || "Login failed");
@@ -56,6 +56,7 @@ const LoginSignup = () => {
     
 
     return (
+        <div className="login-signup">
         <div className={`container ${isSignup ? "signup" : ""}`}>
             <div className="shape">
                 <img className="img0" src={SSSIHL} alt="sssihl" />
@@ -80,6 +81,7 @@ const LoginSignup = () => {
                     <button type="submit">Sign Up</button>
                 </form>
             </div>
+        </div>
         </div>
     );
 };
