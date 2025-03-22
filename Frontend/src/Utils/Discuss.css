@@ -1,0 +1,10 @@
+.Discuss {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-image:url("../img/blur.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }

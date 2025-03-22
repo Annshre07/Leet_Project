@@ -1,0 +1,59 @@
+.Post {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-image:url("../img/blur.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .question-container {
+    width: 100%;
+    padding: 20px;
+  }
+  
+  .carousel-container {
+    display: flex;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+  }
+  
+  .scroll-button {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    z-index: 10;
+  }
+  
+  .scroll-button.left {
+    left: 0;
+  }
+  
+  .scroll-button.right {
+    right: 0;
+  }
+  
+  .card-container {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 20px;
+    white-space: nowrap;
+  }
+  
+  .question-card {
+    width: 345px;
+    height: auto;
+    transition: transform 0.3s ease-in-out;
+    cursor: pointer;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .question-card:hover {
+    transform: scale(1.1);
+  }
+  
