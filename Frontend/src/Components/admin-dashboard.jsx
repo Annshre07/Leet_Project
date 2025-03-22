@@ -47,7 +47,7 @@ export default function Question() {
       navigate('/', { replace: true }); // Redirect to login page
     };
     const handleProfile = () => {
-      navigate('/Dashboard/AdminProfile', { replace: true }); // Redirect to login page
+      navigate('/admin-dashboard/AdminProfile'); // Redirect to login page
     };
   
     const handleOpenUserMenu = (event) => {
@@ -59,13 +59,12 @@ export default function Question() {
     };
 
   return (
-    <div className='Post'>
+    <div className='Dashboard'>
         <AppBar position="absolute">
         <Toolbar>
           <Box sx={{ display: "flex", gap: 3, flexGrow: 1 }}>
-            <Button color="inherit" component={Link} to="/Dashboard/Question">Question</Button>
-            <Button color="inherit" component={Link} to="/Dashboard/Discuss">Discuss</Button>
-            <Button color="inherit" component={Link} to="/Dashboard/Post">Post</Button>
+            <Button color="inherit" component={Link} to="/admin-dashboard/Question">Question</Button>
+            <Button color="inherit" component={Link} to="/Discuss">Discuss</Button>
           </Box>
 
           {/* Profile Section */}
@@ -106,7 +105,7 @@ export default function Question() {
 
         <div className="card-container" ref={scrollContainerRef}>
           {questions.map((question, index) => (
-            <Card key={index} className="question-card" onClick={() => navigate('/Dashboard/Question/Problem', { state: question })}>
+            <Card key={index} className="question-card" onClick={() => navigate('/admin-dashboard/Problem', { state: question })}>
               <CardMedia component="img" height="140" src={java} />
               <CardContent>
                 <Typography gutterBottom variant="h5">{question.title}</Typography>

@@ -132,7 +132,7 @@ export default function Question() {
             </TableHead>
             <TableBody>
               {questions.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row) => (
-                <TableRow hover key={row._id || row.title} onClick={() => navigate('/Dashboard/Question/Problem', { state: row })}>
+                <TableRow hover key={row._id || row.title} onClick={() => navigate('/admin-dashboard/Question/Problem', { state: row })}>
                   {columns.map((column) => (
                     <TableCell key={column.id} align={column.align}>{row[column.id]}</TableCell>
                   ))}

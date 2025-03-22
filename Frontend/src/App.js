@@ -4,7 +4,6 @@ import ProtectedRoute from "./Components/ProtectedRoute";
 import Dashboard from "./Components/Dashboard";
 import LoginSignup from "./Components/LoginSignup";
 import Question from "./Components/Question";
-import Post from "./Components/Post";
 import Discuss from "./Components/Discuss";
 import Problem from "./Components/Problem";
 import Profile from './Components/Profile';
@@ -22,16 +21,18 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                     <Route path="/Dashboard" element={<Dashboard />} />
                     <Route path="/Dashboard/Profile" element={<Profile />} />
-                    <Route path="/Dashboard/Question" element={<Question />} />
-                    <Route path="/Dashboard/Question/Problem" element={<Problem />} />
-                    <Route path="/Dashboard/Post" element={<Post />} />
-                    <Route path="/Dashboard/Discuss" element={<Discuss />} />
+                    <Route path="/Dashboard/Problem" element={<Problem />} />
+                    <Route path="/Discuss" element={<Discuss />} />
                 </Route>
 
                 {/* Admin-Only Routes */}
                 <Route element={<ProtectedRoute adminOnly={true} />}>
                     <Route path="/admin-dashboard" element={<AdminDashboard />} />
-                    <Route path="/Dashboard/AdminProfile" element={<AdminProfile />} />
+                    <Route path="/admin-dashboard/AdminProfile" element={<AdminProfile />} />
+                    <Route path="/admin-dashboard/Question" element={<Question />} />
+                    <Route path="/admin-dashboard/Question/Problem" element={<Problem />} />
+                    <Route path="/admin-dashboard/Problem" element={<Problem />} />
+
                 </Route>
 
                 {/* Redirect unknown routes to login */}
