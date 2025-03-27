@@ -1,6 +1,6 @@
 import React, { useState, useEffect,useRef } from "react";
 import axios from "axios";
-import { Layout, Typography, Button,  Splitter } from "antd";
+import { Layout, Typography, Button,Modal,  Splitter } from "antd";
 import "../Utils/Problem.css";
 import { useLocation } from "react-router-dom";
 import Drawer from "@mui/material/Drawer";
@@ -16,6 +16,7 @@ import Solution from "./Solution";
 import Submission from "./Submission";
 
 export default function Problem() {
+  //const [problem, setProblem] = useState(null); // ✅ Declare problem before using it
   const [language,selectedLanguage]=useState("cpp");
   const [selectedTab, setSelectedTab] = useState("description");
   const [code, setCode] = useState("");
@@ -25,6 +26,21 @@ export default function Problem() {
   const [theme, setTheme] = useState("myDarkTheme");
   const [message, setMessage] = useState("");
   const editorRef = useRef(null);
+  const [submissions, setSubmissions] = useState([]);
+  //const [selectedQuestionId, setSelectedQuestionId] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // ✅ State to refresh submissions
+
+  // 📌 Added state to trigger refresh when a submission is made
+  //const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+   // ⏱️ Stopwatch State
+   const [time, setTime] = useState(0);
+   const [isRunning, setIsRunning] = useState(false);
+   const intervalRef = useRef(null);
+   
+   // 📝 Notes Modal State
+   const [isNotesOpen, setIsNotesOpen] = useState(false);
+   const [notes, setNotes] = useState("");
 
   const [problem, setProblem] = useState({
     title: "",
@@ -32,6 +48,38 @@ export default function Problem() {
     question: "",
     testCases: [],
   });
+  
+  // ✅ New state to store the selected problem's ID
+  const [selectedQuestionId, setSelectedQuestionId] = useState(null);
+  const [problems, setProblems] = useState([]);
+
+useEffect(() => {
+  axios.get("http://localhost:5000/api/questions")
+    .then((response) => {
+      setProblems(response.data); // Store all problems
+    })
+    .catch((error) => console.error("Error fetching all problems:", error));
+}, []);
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        setTime((prevTime) => prevTime + 1);
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [isRunning]);
+  
+  const handleNoteOpen = () => {
+    setIsNotesOpen(true);
+  };
+  
+  const handleNoteClose = () => {
+    setIsNotesOpen(false);
+  };
+  
   
   useEffect(() => {
     loader.init().then((monaco) => {
@@ -108,24 +156,61 @@ export default function Problem() {
     }
   }, [location.state?.title]);
 
+  useEffect(() => {
+    if (location.state?.title) {
+      const encodedTitle = encodeURIComponent(location.state.title);
+      axios.get(`http://localhost:5000/api/questions/${encodedTitle}`)
+        .then((response) => {
+          setProblem(response.data);
+          setSelectedQuestionId(response.data._id || null); // ✅ Fix: Set `selectedQuestionId` correctly
+        })
+        .catch((error) => console.error("Error fetching problem details:", error));
+    }
+  }, [location.state?.title]);
+
+  
+   // 🆕 Fetching previous submissions from backend
+   useEffect(() => {
+    const fetchSubmissions = async () => {
+      try {
+        const response = await axios.get("http://localhost:5000/api/submissions");
+        setSubmissions(response.data);
+      } catch (error) {
+        console.error("Error fetching submissions:", error);
+      }
+    };
+  
+    fetchSubmissions();
+  }, [refreshTrigger]); // ✅ Refresh submissions on trigger change
+  
+  const handleProblemSelect = (prob) => {
+    setProblem(prob);
+    setSelectedQuestionId(prob._id || null); // ✅ Now setting the correct question ID
+    setOpen(false);
+  };
+  
+  
   const toggleDrawer = (newOpen) => () => {
     setOpen(newOpen);
   };
   const DrawerList = (
-    <Box sx={{ width: 450 }} role="presentation" onClick={toggleDrawer(false)}>
+    <Box sx={{ width: 450 }} role="presentation">
       <List>
-        {problem.title ? (
-          <ListItem key={problem.title} disablePadding>
-            <ListItemButton>
-              <ListItemText primary={problem.title} />
-            </ListItemButton>
-          </ListItem>
+        {problems.length > 0 ? (
+          problems.map((prob) => (
+            <ListItem key={prob.title} disablePadding>
+              <ListItemButton onClick={() => handleProblemSelect(prob)}>
+                <ListItemText primary={prob.title} />
+              </ListItemButton>
+            </ListItem>
+          ))
         ) : (
-          <p>No question selected.</p>
+          <p>No questions available.</p>
         )}
       </List>
     </Box>
   );
+  
   const handleSubmit = async () => {
     if (!problem?.testCases || problem.testCases.length === 0) {
       setMessage("No test cases available.");
@@ -136,21 +221,18 @@ export default function Problem() {
   
     for (const testCase of problem.testCases) {
       const payload = {
-        language:"cpp",
+        language: "cpp", // ✅ Explicitly setting language
         code, 
       };
+  
       try {
         const { data } = await axios.post("http://127.0.0.1:5000/run", payload);
         console.log("Raw API Output:", data.output);
         console.log("Expected Output:", testCase.expectedOutput);
   
-        const normalizeOutput = (output) =>
-          String(output)
-            .trim()
-            .replace(/\s+/g, "")  ``
-            .replace(/;$/, "")
-            .toLowerCase();
-        
+        const normalizeOutput = (output) => {
+          return output ? output.trim().replace(/\s+/g, "").replace(/;$/, "").toLowerCase() : "";
+        };
   
         const actualOutput = normalizeOutput(data.output);
         const expectedOutput = normalizeOutput(testCase.expectedOutput);
@@ -173,17 +255,50 @@ export default function Problem() {
       }
     }
   
+    // 📌 Only submit once after running all test cases
+    const newSubmission = {
+      username: "test_user", // TODO: Replace with actual username
+      code,
+      language: "cpp", // ✅ Explicitly setting language
+      time: new Date().toISOString(),
+      status: results.every((r) => r.status.includes("✅")) ? "Passed" : "Failed",
+      questionId: selectedQuestionId, // ✅ Ensure question ID is sent
+    };
+  
+    try {
+      await axios.post("http://localhost:5000/api/submissions", newSubmission);
+      setSubmissions((prevSubmissions) => [...prevSubmissions, newSubmission]);
+  
+      // 🔄 Force submission list refresh
+      setRefreshTrigger((prev) => prev + 1);
+  
+      // ✅ Switch to "Submission" tab automatically
+      setSelectedTab("submission");
+  
+    } catch (err) {
+      console.error("Error submitting:", err);
+    }
+  
     const formattedResults = results
       .map((result) => `${result.status}: Expected(${result.expectedOutput}) | Got(${result.actualOutput})`)
       .join("\n");
-
+  
     setOutput(formattedResults || "❌ No test cases passed.");
   };
+  
+  
 
   const tabComponents = {
     description: (props) => <Description problem={problem} {...props} />, 
     solution: (props) => <Solution {...props} />, 
-    submission: (props) => <Submission {...props} />
+    submission: (props) =><Submission
+    questionId={selectedQuestionId} 
+    output={output} 
+    message={message} 
+    refreshTrigger={refreshTrigger} 
+    submissions={submissions} // ✅ Pass submissions here
+  />
+
   };
 
   return (
@@ -191,10 +306,53 @@ export default function Problem() {
       <Layout style={{ height: "100vh", background: "#fff" }}>
         <div className="Buttons">
           <Button onClick={toggleDrawer(true)}>Problem List</Button>
-          <Button>Time</Button>
-          <Button>Note</Button>
+          <Button onClick={handleNoteOpen}>Note</Button>
+        {/* ⏱️ Stopwatch Display */}
+<div style={{ textAlign: "center", margin: "10px", fontSize: "15px", fontWeight: "bold" }}>
+  {/* Display Time */}
+  
+  {/* 🆕 Start/Stop Toggle Button */}
+  <div style={{ marginTop: "10px" }}>
+    <Button 
+      onClick={() => setIsRunning((prev) => !prev)} 
+      type="primary" 
+      style={{ marginRight: "5px" }}
+    >
+      {isRunning ? "Stop" : "Start"} {/* Dynamic button text */}
+    </Button>
+
+    {/* 🆕 Reset Button */}
+    <Button 
+      onClick={() => {
+        setIsRunning(false);
+        setTime(0);
+      }} 
+      type="default"
+    >
+      Reset
+    </Button>
+    Time: {Math.floor(time / 60)}:{("0" + (time % 60)).slice(-2)}
+
+  </div>
+</div>
+
           <Button type="primary" onClick={handleSubmit} style={{ marginTop: "10px" }}>Submit</Button>
         </div>
+        
+        
+
+
+
+        {/*  Notes Modal */}
+        <Modal title="Notes" open={isNotesOpen} onOk={handleNoteClose} onCancel={handleNoteClose}>
+  <textarea
+    value={notes}
+    onChange={(e) => setNotes(e.target.value)}
+    rows={5}
+    placeholder="Write your notes here..."
+    style={{ width: "100%", padding: "10px" }}
+  />
+</Modal>
 
         <Drawer open={open} onClose={toggleDrawer(false)}>{DrawerList}</Drawer>
 
@@ -239,19 +397,26 @@ export default function Problem() {
               
     {/* ✅ Monaco Editor with Responsive Height */}
     <div id="editor-container" style={{ height: "60vh", border: "1px solid #ddd" }}>
-      <Editor
-        theme={theme}  
-        language={language}
-        value={code}
-        onMount={(editor) => (editorRef.current = editor)}
-        onChange={(value) => setCode(value)}
-        options={{
-          fontSize: 14, 
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-        }}
-      />
+    <Editor
+  theme={theme}  
+  language={language}
+  value={code}
+  onMount={(editor) => {
+    console.log("Editor Mounted");
+    editorRef.current = editor;
+  }}
+  onChange={(value) => {
+    console.log("Editor Code Changed:", value); // 🔹 Log Code Changes
+    setCode(value);
+  }}
+  options={{
+    fontSize: 14, 
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+  }}
+/>
+
     </div>
 
    

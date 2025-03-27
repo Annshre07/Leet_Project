@@ -160,6 +160,7 @@ export default function Question() {
          
           <TextField margin="dense" label="Title" name="title" fullWidth onChange={handleInputChange} />
           <TextField margin="dense" label="Question" name="question" fullWidth multiline rows={2} onChange={handleInputChange} />
+          <TextField margin="dense" label="Language" name="language" fullWidth multiline rows={2} onChange={handleInputChange} />      
           <TextField margin="dense" label="Description" name="description" fullWidth multiline rows={2} onChange={handleInputChange} />
           <TextField margin="dense" label="Difficulty" name="difficulty" fullWidth onChange={handleInputChange} />
 

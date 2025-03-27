@@ -1,25 +1,25 @@
 const mongoose = require('mongoose');
-
-// ✅ Define TestCase Schema
 const TestCaseSchema = new mongoose.Schema({
     input: { type: String, required: true },
     expectedOutput: { type: String, required: true }
 });
-
-// ✅ Define Question Schema
 const QuestionSchema = new mongoose.Schema({
     
     title: {
         type: String,
         required: true,
         trim: true,
-        unique: true // Ensuring uniqueness for better integrity
+        unique: true 
     },
-    question: {  // ✅ Add question field
+    question: { 
         type: String,
         required: true
     },
-    description: {  // ✅ Add description field
+    language:{
+        type:String,
+        rquired:true,
+    },
+    description: {  
         type: String,
         required: true
     },
@@ -29,8 +29,6 @@ const QuestionSchema = new mongoose.Schema({
         enum: ['Easy', 'Medium', 'Hard'],
         required: true
     },
-    testCases: { type: [TestCaseSchema], default: [] }  // ✅ Add test cases array
-}, { timestamps: true }); // ✅ Adds createdAt & updatedAt fields automatically
-
-// ✅ Export Model
+    testCases: { type: [TestCaseSchema], default: [] } 
+}, { timestamps: true }); 
 module.exports = mongoose.model('Question', QuestionSchema);

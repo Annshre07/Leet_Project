@@ -35,11 +35,11 @@ router.get('/questions/:title', async (req, res) => {
 // ✅ POST: Add a new question (Only required fields)
 router.post('/questions', async (req, res) => {
     try {
-        const { title, question, description, difficulty, testCases } = req.body;
+        const { title, question,language, description, difficulty, testCases } = req.body;
 
         // ✅ Validate required fields
-        if (!title || !question || !description || !difficulty) {
-            return res.status(400).json({ message: 'Title, question, description, and difficulty are required' });
+        if (!title || !question || !description || !difficulty || !language) {
+            return res.status(400).json({ message: 'Title, question, description,language and difficulty are required' });
         }
 
         // ✅ Validate testCases format (if provided)
@@ -50,6 +50,7 @@ router.post('/questions', async (req, res) => {
         const newQuestion = new Question({
             title,
             question,
+            language,
             description,
             difficulty,
             testCases: testCases || [] // Default to an empty array
