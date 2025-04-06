@@ -10,12 +10,15 @@ const Submission = require("./models/Submission"); // ✅ Correct Model Import
 
 const app = express();
 
-// ✅ CORS Configuration
+// CORS Configuration
 const corsOptions = {
-    origin: ["http://localhost:3000"], // Adjust based on your frontend URL
+    origin: ["http://localhost:3000"], // Adjust for frontend
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization", "admin"], // Add "admin" header
+    exposedHeaders: ["Authorization"], // Expose Authorization header if needed
 };
+app.use(cors(corsOptions));
+
 app.use(cors(corsOptions));
 app.use(express.json());
 

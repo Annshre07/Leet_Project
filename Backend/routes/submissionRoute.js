@@ -18,9 +18,10 @@ router.get("/submissions", async (req, res) => {
 });
 
 // ✅ POST: Add a new submission (Requires authentication)
+// In routes/submissionRoutes.js
 router.post("/submissions", authMiddleware, async (req, res) => {
     try {
-        const { code, language, status, questionId } = req.body;
+        const { code, language, status, questionId, executionTime, memoryUsed } = req.body;
 
         if (!questionId) {
             return res.status(400).json({ message: "questionId is required" });
@@ -29,13 +30,16 @@ router.post("/submissions", authMiddleware, async (req, res) => {
         // Ensure authenticated user data is used
         const username = req.user.username;
 
+        // Create a new submission including the execution metrics
         const newSubmission = new Submission({
-            username,  // Get username from authenticated user
+            username,  
             code,
             language,
             time: new Date(),
             status,
-            questionId // ✅ Save questionId in submission
+            questionId,
+            executionTime, // e.g., "378.63 ms"
+            memoryUsed     // e.g., "8.00 KB"
         });
 
         await newSubmission.save();

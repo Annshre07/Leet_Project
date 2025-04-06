@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
+
 const TestCaseSchema = new mongoose.Schema({
     input: { type: String, required: true },
     expectedOutput: { type: String, required: true }
@@ -17,7 +19,7 @@ const QuestionSchema = new mongoose.Schema({
     },
     language:{
         type:String,
-        rquired:true,
+        required:true,
     },
     description: {  
         type: String,
@@ -29,6 +31,9 @@ const QuestionSchema = new mongoose.Schema({
         enum: ['Easy', 'Medium', 'Hard'],
         required: true
     },
-    testCases: { type: [TestCaseSchema], default: [] } 
+    testCases: { type: [TestCaseSchema], default: [] },
+   // Store deadline as a Date type
+    deadline: { type: Date, required: false }  
 }, { timestamps: true }); 
+
 module.exports = mongoose.model('Question', QuestionSchema);

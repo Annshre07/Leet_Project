@@ -27,18 +27,25 @@ export default function Problem() {
   const [message, setMessage] = useState("");
   const editorRef = useRef(null);
   const [submissions, setSubmissions] = useState([]);
+  const [errorMessage, setErrorMessage] = useState(null);
+   // const [output, setOutput] = useState("");
+   const [executionTime, setExecutionTime] = useState("");
+   const [memoryUsed, setMemoryUsed] = useState("");
+   
+  // State for error message
+
   //const [selectedQuestionId, setSelectedQuestionId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // ✅ State to refresh submissions
 
   // 📌 Added state to trigger refresh when a submission is made
   //const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-   // ⏱️ Stopwatch State
+   //Stopwatch State
    const [time, setTime] = useState(0);
    const [isRunning, setIsRunning] = useState(false);
    const intervalRef = useRef(null);
    
-   // 📝 Notes Modal State
+   //Notes Modal State
    const [isNotesOpen, setIsNotesOpen] = useState(false);
    const [notes, setNotes] = useState("");
 
@@ -49,7 +56,7 @@ export default function Problem() {
     testCases: [],
   });
   
-  // ✅ New state to store the selected problem's ID
+  //New state to store the selected problem's ID
   const [selectedQuestionId, setSelectedQuestionId] = useState(null);
   const [problems, setProblems] = useState([]);
 
@@ -169,7 +176,7 @@ useEffect(() => {
   }, [location.state?.title]);
 
   
-   // 🆕 Fetching previous submissions from backend
+   //Fetching previous submissions from backend
    useEffect(() => {
     const fetchSubmissions = async () => {
       try {
@@ -181,11 +188,11 @@ useEffect(() => {
     };
   
     fetchSubmissions();
-  }, [refreshTrigger]); // ✅ Refresh submissions on trigger change
+  }, [refreshTrigger]); // Refresh submissions on trigger change
   
   const handleProblemSelect = (prob) => {
     setProblem(prob);
-    setSelectedQuestionId(prob._id || null); // ✅ Now setting the correct question ID
+    setSelectedQuestionId(prob._id || null); //Now setting the correct question ID
     setOpen(false);
   };
   
@@ -218,15 +225,24 @@ useEffect(() => {
     }
   
     const results = [];
-  
+    let totalExecutionTime = 0;
+    let totalMemoryUsed = 0;
+
     for (const testCase of problem.testCases) {
       const payload = {
-        language: "cpp", // ✅ Explicitly setting language
+        language: "cpp", //Explicitly setting language
         code, 
+         input: testCase.input || ""
       };
   
       try {
-        const { data } = await axios.post("http://127.0.0.1:5000/run", payload);
+ 
+        
+      const { data } = await axios.post("http://127.0.0.1:5000/run", payload);
+      // Track execution time and memory used from response
+      totalExecutionTime += data.executionTime || 0;
+      totalMemoryUsed += data.memoryUsed || 0;
+
         console.log("Raw API Output:", data.output);
         console.log("Expected Output:", testCase.expectedOutput);
   
@@ -241,38 +257,54 @@ useEffect(() => {
           input: testCase.input || "N/A",
           expectedOutput: testCase.expectedOutput,
           actualOutput: data.output,
-          status: actualOutput === expectedOutput ? "✅ Passed" : "❌ Failed",
+          status: actualOutput === expectedOutput ? "Passed" : "Failed",
         });
   
       } catch (err) {
+        setErrorMessage(`Error: ${err.message} (Type: ${err.name})`);
+
         console.error("Error running code:", err);
+        
+        // Show detailed error information
+        console.error("Error at line:", err.stack); // Logs the stack trace (where the error occurred)
+        console.error("Error type:", err.name); // Logs the error type
+        console.error("Error message:", err.message); // Logs the specific error message
+  
         results.push({
           input: testCase.input,
           expectedOutput: testCase.expectedOutput,
           actualOutput: "Error",
-          status: "❌ Error",
+          status: "Error",
+          errorDetails: {
+            message: err.message,
+            stack: err.stack,
+            type: err.name,
+          },
         });
       }
     }
   
-    // 📌 Only submit once after running all test cases
+    //Only submit once after running all test cases
     const newSubmission = {
-      username: "test_user", // TODO: Replace with actual username
+      username: "test_user",
       code,
-      language: "cpp", // ✅ Explicitly setting language
+      language: "cpp",
       time: new Date().toISOString(),
-      status: results.every((r) => r.status.includes("✅")) ? "Passed" : "Failed",
-      questionId: selectedQuestionId, // ✅ Ensure question ID is sent
+      status: results.every((r) => r.status === "Passed") ? "Passed" : "Failed",
+      questionId: selectedQuestionId,
+      executionTime: totalExecutionTime,
+      memoryUsed: totalMemoryUsed
     };
+    
   
     try {
       await axios.post("http://localhost:5000/api/submissions", newSubmission);
       setSubmissions((prevSubmissions) => [...prevSubmissions, newSubmission]);
   
-      // 🔄 Force submission list refresh
+      // Force submission list refresh
       setRefreshTrigger((prev) => prev + 1);
   
-      // ✅ Switch to "Submission" tab automatically
+      // Switch to "Submission" tab automatically
       setSelectedTab("submission");
   
     } catch (err) {
@@ -283,7 +315,7 @@ useEffect(() => {
       .map((result) => `${result.status}: Expected(${result.expectedOutput}) | Got(${result.actualOutput})`)
       .join("\n");
   
-    setOutput(formattedResults || "❌ No test cases passed.");
+    setOutput(formattedResults || "No test cases passed.");
   };
   
   
@@ -291,37 +323,41 @@ useEffect(() => {
   const tabComponents = {
     description: (props) => <Description problem={problem} {...props} />, 
     solution: (props) => <Solution {...props} />, 
-    submission: (props) =><Submission
-    questionId={selectedQuestionId} 
-    output={output} 
-    message={message} 
-    refreshTrigger={refreshTrigger} 
-    submissions={submissions} // ✅ Pass submissions here
-  />
+    submission: (props) => (
+      <Submission
+        questionId={selectedQuestionId}
+        output={output}
+        executionTime={executionTime}  // ✅ Pass execution time
+        memoryUsed={memoryUsed}        // ✅ Pass memory used
+        message={message}
+        refreshTrigger={refreshTrigger}
+        submissions={submissions}
+        {...props}
+      />
+    )
 
   };
+  
 
+  
   return (
     <div className="Problem-Bar">
       <Layout style={{ height: "100vh", background: "#fff" }}>
         <div className="Buttons">
           <Button onClick={toggleDrawer(true)}>Problem List</Button>
           <Button onClick={handleNoteOpen}>Note</Button>
-        {/* ⏱️ Stopwatch Display */}
+      
 <div style={{ textAlign: "center", margin: "10px", fontSize: "15px", fontWeight: "bold" }}>
-  {/* Display Time */}
-  
-  {/* 🆕 Start/Stop Toggle Button */}
+
   <div style={{ marginTop: "10px" }}>
     <Button 
       onClick={() => setIsRunning((prev) => !prev)} 
       type="primary" 
       style={{ marginRight: "5px" }}
     >
-      {isRunning ? "Stop" : "Start"} {/* Dynamic button text */}
+      {isRunning ? "Stop" : "Start"} 
     </Button>
 
-    {/* 🆕 Reset Button */}
     <Button 
       onClick={() => {
         setIsRunning(false);
@@ -335,15 +371,8 @@ useEffect(() => {
 
   </div>
 </div>
-
           <Button type="primary" onClick={handleSubmit} style={{ marginTop: "10px" }}>Submit</Button>
         </div>
-        
-        
-
-
-
-        {/*  Notes Modal */}
         <Modal title="Notes" open={isNotesOpen} onOk={handleNoteClose} onCancel={handleNoteClose}>
   <textarea
     value={notes}
@@ -380,7 +409,7 @@ useEffect(() => {
   <Typography.Title level={5} style={{ textAlign: "center" }}>Online Code Compiler</Typography.Title>
   
   <div className="coding-block" style={{ flexGrow: 1, display: "flex", flexDirection: "column", height: "100%" }}>
-    {/* ✅ Language Dropdown */}
+    {/*Language Dropdown */}
     <select value={language} onChange={(e) => selectedLanguage(e.target.value)} className="language-dropdown">
       <option value="cpp">C++</option>
       <option value="c">C</option>
@@ -389,13 +418,13 @@ useEffect(() => {
       <option value="javascript">JavaScript</option>
     </select>
 
-    {/* ✅ Theme Dropdown */}
+    {/*Theme Dropdown */}
     <select value={theme} onChange={(e) => setTheme(e.target.value)}>
       <option value="myDarkTheme">Dark Theme</option>
       <option value="myLightTheme">Light Theme</option>
     </select>
               
-    {/* ✅ Monaco Editor with Responsive Height */}
+    {/*Monaco Editor with Responsive Height */}
     <div id="editor-container" style={{ height: "60vh", border: "1px solid #ddd" }}>
     <Editor
   theme={theme}  
@@ -417,14 +446,16 @@ useEffect(() => {
   }}
 />
 
+{/* Display Error Message */}
+{errorMessage && (
+  <div style={{ color: "red", marginTop: "10px", fontSize: "14px" }}>
+    {errorMessage}
+  </div>
+)}
     </div>
-
-   
     <p>{output}</p>
   </div>
 </Splitter.Panel>
-
-
               <Splitter.Panel style={{ padding: "10px", height: "50%", display: "flex", flexDirection: "column", flexGrow: 1 }}>
                 <div className="test-cases-block" style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
                   <Typography.Title level={5} style={{ textAlign: "center" }}>Test Cases</Typography.Title>

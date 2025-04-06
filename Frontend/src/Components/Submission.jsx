@@ -5,22 +5,25 @@ const Submission = ({ questionId, output, message, refreshTrigger }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  console.log("Current questionId:", questionId); // 🔹 Debugging
-
-  // ✅ Fetch Submissions Function
+  
   const fetchSubmissions = useCallback(async () => {
     if (!questionId) {
-      setSubmissions([]); // 🔹 Reset when no question is selected
+      setSubmissions([]); // Reset when no question is selected
       return;
     }
-
+  
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:5000/api/submissions?questionId=${questionId}`);
       const data = await response.json();
+  
       if (response.ok) {
-        setSubmissions(data);
+        const processedData = data.map(submission => ({
+          ...submission,
+          executionTime: submission.executionTime || "N/A",
+          memoryUsed: submission.memoryUsed || "N/A"
+        }));
+        setSubmissions(processedData);
         setError("");
       } else {
         setError("Failed to fetch submissions");
@@ -30,13 +33,13 @@ const Submission = ({ questionId, output, message, refreshTrigger }) => {
     } finally {
       setLoading(false);
     }
-  }, [questionId]); // 🔹 Dependencies updated
-
-  // ✅ useEffect - calls fetchSubmissions whenever questionId or refreshTrigger changes.
+  }, [questionId]);
+  
   useEffect(() => {
     fetchSubmissions();
-  }, [fetchSubmissions, refreshTrigger]); // 🔹 Triggers fetch on ID change
+  }, [fetchSubmissions, refreshTrigger]);
 
+  
   const columns = [
     {
       title: "Username",
@@ -44,17 +47,53 @@ const Submission = ({ questionId, output, message, refreshTrigger }) => {
       key: "username",
       sorter: (a, b) => a.username.localeCompare(b.username),
     },
+    {
+      title: "Execution Time (ms)",
+      dataIndex: "executionTime",
+      key: "executionTime",
+      sorter: (a, b) => {
+        const aValue = parseFloat(a.executionTime) || 0;
+        const bValue = parseFloat(b.executionTime) || 0;
+        return aValue - bValue;
+      },
+      render: (time) => <span>{time !== "N/A" ? `${time} ms` : "N/A"}</span>,
+    },
+    {
+      title: "Memory Used (KB)",
+      dataIndex: "memoryUsed",
+      key: "memoryUsed",
+      sorter: (a, b) => {
+        const aValue = parseFloat(a.memoryUsed) || 0;
+        const bValue = parseFloat(b.memoryUsed) || 0;
+        return aValue - bValue;
+      },
+      render: (memory) => <span>{memory !== "N/A" ? `${memory} KB` : "N/A"}</span>,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status) => (
+        <span style={{ color: status === "Passed" ? "green" : "red", fontWeight: "bold" }}>
+          {status}
+        </span>
+      ),
+    },
   ];
+
 
   return (
     <div style={{ padding: "20px", background: "#fff", borderRadius: "5px", boxShadow: "0px 0px 5px #ddd" }}>
+      
       <h3>Submissions for Question ID: {questionId || "None Selected"}</h3>
 
       {loading ? (
         <Spin size="large" />
       ) : error ? (
         <Alert message={error} type="error" showIcon />
+        
       ) : submissions.length > 0 ? (
+        
         <Table
           columns={columns}
           dataSource={submissions.map((item, index) => ({ ...item, key: index }))}
@@ -71,6 +110,10 @@ const Submission = ({ questionId, output, message, refreshTrigger }) => {
                 <p>
                   <strong>Time:</strong> {new Date(record.time).toLocaleString()}
                 </p>
+                <pre>{output}</pre>
+                <p><strong>Execution Time:</strong></p>
+                <p><strong>Memory Used:</strong></p>
+
                 <p>
                   <strong>Status:</strong>
                   <span style={{ color: record.status === "Passed" ? "green" : "red", fontWeight: "bold" }}>
@@ -87,7 +130,9 @@ const Submission = ({ questionId, output, message, refreshTrigger }) => {
       )}
 
       <h4>Output:</h4>
-      <pre style={{ background: "#eef", padding: "10px", borderRadius: "5px" }}>{output || "No output yet."}</pre>
+      <pre style={{ background: "#eef", padding: "10px", borderRadius: "5px" }}>
+        {output || "No output yet."}
+      </pre>
 
       {message && <p style={{ color: "blue", fontWeight: "bold" }}>{message}</p>}
     </div>

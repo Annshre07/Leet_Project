@@ -13,11 +13,6 @@ mongoose.connection.once("open", () => {
     console.log("📂 GridFSBucket initialized for execution");
 });
 
-/**
- * Retrieves source code from MongoDB GridFS
- * @param {string} fileId - The ID of the stored file in GridFS
- * @returns {Promise<string>} - The source code content
- */
 const getCodeFromGridFS = async (fileId) => {
     return new Promise((resolve, reject) => {
         let sourceCode = "";
@@ -40,20 +35,11 @@ const getCodeFromGridFS = async (fileId) => {
     });
 };
 
-
-/**
- * Compiles and runs a C++ file stored in MongoDB
- * @param {string} fileId - The GridFS file ID
- * @param {object} res - Express response object
- * @param {Array} testCases - Optional test cases for execution
- */
 const executeCpp = async (fileId, res, testCases = []) => {
     if (!bucket) {
         console.warn("⚠️ GridFSBucket not initialized. Initializing now...");
         bucket = new GridFSBucket(mongoose.connection.db, { bucketName: "codes" });
     }
-    
-
 
     const tempDir = path.resolve(os.tmpdir(), "code_exec");
     await fs.mkdir(tempDir, { recursive: true });
@@ -85,41 +71,51 @@ const executeCpp = async (fileId, res, testCases = []) => {
             if (code !== 0) {
                 console.error(`❌ Compilation failed: ${errorOutput}`);
                 await cleanupFiles(tempFilePath);
-                return safeResponse(res, { success: false, error: `❌ Compilation failed: ${errorOutput}` });
+                return res.json({ success: false, error: `❌ Compilation failed: ${errorOutput}` });
             }
 
             console.log(`✅ Compilation successful: ${outFilePath}`);
 
-            // Run the program and capture output
-            let executionResult = await runExecutable(outFilePath);
+            // Measure start time and memory usage
+            const startTime = process.hrtime();
+            const startMemory = process.memoryUsage().rss;
 
-            // Compare Expected & Actual Output
-            if (testCases.length > 0) {
-                const testResults = runTestCases(executionResult, testCases);
+            try {
+                // Run the program and capture output
+                const executionResult = await runExecutable(outFilePath, startTime, startMemory);
+
+                // Send back the response
+                const responseData = {
+                    success: true,
+                    output: executionResult.output,
+                    executionTime: executionResult.executionTime + " ms",
+                    memoryUsed: executionResult.memoryUsed + " KB"
+                };
+
+                if (testCases.length > 0) {
+                    const testResults = runTestCases(executionResult.output, testCases);
+                    responseData.testResults = testResults;
+                }
+
                 await cleanupFiles(tempFilePath, outFilePath);
-                return safeResponse(res, { success: true, results: testResults });
-            } else {
-                await cleanupFiles(tempFilePath, outFilePath);
-                return safeResponse(res, { success: true, output: executionResult });
+                return res.json(responseData);
+
+            } catch (err) {
+                console.error("❌ Execution Error:", err);
+                return res.json({ success: false, error: "❌ Execution error occurred." });
             }
         });
     } catch (err) {
-        console.error("❌ Execution Error:", err);
-        return safeResponse(res, { success: false, error: "❌ Execution error occurred." });
+        console.error("❌ Error:", err);
+        return res.json({ success: false, error: "❌ Execution error occurred." });
     }
 };
 
-/**
- * Runs the compiled executable and captures output
- * @param {string} executablePath - Path to the compiled executable
- * @returns {Promise<string>} - Captured output
- */
-const runExecutable = async (executablePath) => {
+const runExecutable = async (executablePath, startTime, startMemory) => {
     return new Promise((resolve) => {
         let outputData = "";
         let errorOutput = "";
 
-        console.log(`🚀 Running Executable: ${executablePath}`);
         const run = spawn(executablePath);
 
         run.stdout.on("data", (data) => {
@@ -131,46 +127,27 @@ const runExecutable = async (executablePath) => {
         });
 
         run.on("close", () => {
+            const endTime = process.hrtime(startTime);
+            const endMemory = process.memoryUsage().rss;
+
+            const executionTime = (endTime[0] * 1000) + (endTime[1] / 1e6);
+            const memoryUsed = endMemory - startMemory;
+
             if (errorOutput) {
                 console.error(`❌ Runtime Error: ${errorOutput}`);
-                resolve(`Runtime Error: ${errorOutput}`);
+                resolve({ output: `Runtime Error: ${errorOutput}`, executionTime, memoryUsed });
             } else {
                 console.log(`✅ Execution Output: ${outputData.trim()}`);
-                resolve(outputData.trim());
+                console.log(`Execution time: ${executionTime.toFixed(2)} ms`);
+                console.log(`Memory used: ${(memoryUsed / 1024).toFixed(2)} KB`);
+
+                resolve({ output: outputData.trim(), executionTime, memoryUsed: memoryUsed / 1024 });
             }
         });
     });
 };
 
-/**
- * Runs test cases on the actual output
- * @param {string} actualOutput - The actual output from execution
- * @param {Array} testCases - Array of { expectedOutput }
- * @returns {Object} - Test results
- */
-const runTestCases = (actualOutput, testCases) => {
-    let results = testCases.map((testCase, index) => {
-        const { expectedOutput } = testCase;
-        const success = actualOutput.trim() === expectedOutput.trim();
 
-        console.log(`🔎 Test Case ${index + 1}: Expected: "${expectedOutput}", Got: "${actualOutput}"`);
-        console.log(`✅ Test Case ${index + 1} ${success ? "PASSED" : "FAILED"}`);
-
-        return {
-            testCase: index + 1,
-            expectedOutput,
-            actualOutput,
-            success,
-        };
-    });
-
-    return { testResults: results };
-};
-
-/**
- * Cleans up temporary files
- * @param  {...string} filePaths - Paths of files to delete
- */
 const cleanupFiles = async (...filePaths) => {
     for (const file of filePaths) {
         try {
@@ -182,11 +159,6 @@ const cleanupFiles = async (...filePaths) => {
     }
 };
 
-/**
- * Sends a response safely without causing duplicate response errors
- * @param {object} res - Express response object
- * @param {object} message - Message to send
- */
 const safeResponse = (res, message) => {
     if (!res.headersSent) {
         res.json(message);
@@ -194,6 +166,5 @@ const safeResponse = (res, message) => {
         console.warn("⚠️ Response already sent, skipping duplicate response.");
     }
 };
-
 
 module.exports = { executeCpp };

@@ -2,6 +2,8 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import moment from 'moment-timezone';
+
 import {
   Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead,
   TablePagination, TableRow, TextField, Dialog, DialogActions,
@@ -12,6 +14,8 @@ const columns = [
   
   { id: 'title', label: 'Title', minWidth: 200 },
   { id: 'difficulty', label: 'Difficulty', minWidth: 150, align: 'right' },
+  { id: 'deadline', label: 'Deadline', minWidth: 200, align: 'right' },  // ✅ Add Deadline Column
+
 ];
 
 export default function Question() {
@@ -29,18 +33,29 @@ export default function Question() {
     question: '',
     description: '',
     difficulty: '',
+    deadline:'',
     testCases: [{ input: '', expectedOutput: '' }]
   });
 
   // Fetch questions from the backend
   useEffect(() => {
-    axios.get('http://localhost:5000/api/questions')
-      .then(response => {
+    const fetchQuestions = () => {
+      axios.get('http://localhost:5000/api/questions')
+    .then(response => {
         console.log("Fetched Questions:", response.data);
-        setQuestions(response.data);
-      })
-      .catch(error => console.error('Error fetching questions:', error));
-  }, []);
+        const questionsWithIST = response.data.map(q => ({
+            ...q,
+            deadline: q.deadline ? moment(q.deadline).format("YYYY-MM-DD") : "No Deadline" 
+        }));
+        setQuestions(questionsWithIST);
+    })
+//Idhar
+        .catch(error => console.error('Error fetching questions:', error));
+    };
+    
+    fetchQuestions();
+  }, []); 
+
 
   // Handle pagination
   const handleChangePage = (_, newPage) => setPage(newPage);
@@ -82,10 +97,15 @@ export default function Question() {
       title: newQuestion.title.trim(),
       question: newQuestion.question.trim(),
       description: newQuestion.description.trim(),
-     
-      
+      language: newQuestion.language.trim(), 
       difficulty: newQuestion.difficulty.trim(),
-      testCases: newQuestion.testCases.filter(tc => tc.input.trim() !== '' && tc.expectedOutput.trim() !== '')
+      testCases: newQuestion.testCases,  // Don't filter out empty test cases
+
+     // Store deadline in IST format
+    deadline: newQuestion.deadline
+    ? moment(newQuestion.deadline).format("YYYY-MM-DD")  // Send only the date (YYYY-MM-DD)
+    : null
+
     };
 
     if (
@@ -96,19 +116,42 @@ export default function Question() {
 
     axios.post("http://localhost:5000/api/questions", formattedQuestion)
       .then(response => {
-        setQuestions(prev => [...prev, response.data]);
+        axios.get('http://localhost:5000/api/questions')
+        .then(response => {
+            setQuestions(response.data);
+        })
+        .catch(error => console.error('Error fetching updated questions:', error));
+    
         setNewQuestion({
          
           title: '',
           question: '',
           description: '',
           difficulty: '',
+           language: '',
+          deadline:'',
           testCases: [{ input: '', expectedOutput: '' }]
         });
         handleClose();
       })
       .catch(error => console.error("Error adding question:", error));
   };
+  // Function to handle question deletion
+  const handleDeleteQuestion = (id) => {
+    if (window.confirm("Are you sure you want to delete this question?")) {
+      axios.delete(`http://localhost:5000/api/questions/${id}`, {
+        headers: { admin: "true" } //  Send the admin header
+    })
+    .then(() => {
+        setQuestions(prev => prev.filter(question => question._id !== id));
+    })
+    .catch(error => console.error(" Error deleting question:", error));
+    
+    }
+  };
+  // Added delete functionality above ⬆️
+
+ 
 
   return (
     <Paper sx={{ width: '100%', overflow: 'hidden', padding: 2 }}>
@@ -128,17 +171,37 @@ export default function Question() {
                     {column.label}
                   </TableCell>
                 ))}
+                 <TableCell>Actions</TableCell> {/* Added Actions column for delete button */}
               </TableRow>
             </TableHead>
             <TableBody>
-              {questions.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row) => (
-                <TableRow hover key={row._id || row.title} onClick={() => navigate('/admin-dashboard/Question/Problem', { state: row })}>
-                  {columns.map((column) => (
-                    <TableCell key={column.id} align={column.align}>{row[column.id]}</TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
+  {questions.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row) => (
+    <TableRow 
+      hover 
+      key={row._id || row.title} 
+      onClick={() => navigate('/admin-dashboard/Question/Problem', { state: row })}
+    >
+      {columns.map((column) => (
+        <TableCell key={column.id} align={column.align}>
+          {column.id === 'deadline' ? row[column.id] || "No Deadline" : row[column.id]}
+        </TableCell>
+      ))}
+      <TableCell>
+        <Button 
+          variant="contained" 
+          color="secondary" 
+          onClick={(e) => {
+            e.stopPropagation(); // Prevents row click navigation when deleting
+            handleDeleteQuestion(row._id);
+          }}
+        >
+          Delete
+        </Button>
+      </TableCell>
+    </TableRow>
+  ))}
+</TableBody>
+
           </Table>
         </TableContainer>
       )}
@@ -153,7 +216,7 @@ export default function Question() {
         onRowsPerPageChange={handleChangeRowsPerPage}
       />
 
-      {/* Add Question Modal */}
+      {/* Add suestion Modal */}
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>Add New Question</DialogTitle>
         <DialogContent>
@@ -163,7 +226,7 @@ export default function Question() {
           <TextField margin="dense" label="Language" name="language" fullWidth multiline rows={2} onChange={handleInputChange} />      
           <TextField margin="dense" label="Description" name="description" fullWidth multiline rows={2} onChange={handleInputChange} />
           <TextField margin="dense" label="Difficulty" name="difficulty" fullWidth onChange={handleInputChange} />
-
+          <TextField margin="dense" label="Deadline YYYY-MM-DD" name="deadline" fullWidth multiline rows={2} onChange={handleInputChange} />
           {/* Test Cases */}
           {newQuestion.testCases.map((testCase, index) => (
             <div key={index} style={{ marginTop: 10 }}>
