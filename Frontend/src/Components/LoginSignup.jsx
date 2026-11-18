@@ -1,97 +1,98 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { useNavigate, Navigate } from "react-router-dom";
 import gsap from "gsap";
-import "../Utils/LoginSignup.css"; 
+import api, { errorMessage } from "../api/client";
+import { setSession, isAuthenticated, getUser, homeFor } from "../auth/session";
+import "../Utils/LoginSignup.css";
 import SSSIHL from "../img/SSSIHL.png";
 
-const API_URL = "http://localhost:5000/api/auth";
+const PASSWORD_HINT = "At least 8 characters, with a letter and a number";
 
 const LoginSignup = () => {
-    const navigate = useNavigate();
-    const [isSignup, setIsSignup] = useState(false);
-    const [signupData, setSignupData] = useState({ username: "", email: "", password: "" });
-    const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const navigate = useNavigate();
+  const [isSignup, setIsSignup] = useState(false);
+  const [signupEnabled, setSignupEnabled] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [signupData, setSignupData] = useState({ username: "", email: "", password: "" });
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
 
-    useEffect(() => {
-        gsap.to(".shape", {
-            left: isSignup ? "50%" : "0%",
-            borderTopLeftRadius: isSignup ? "300px" : "0px",
-            borderBottomLeftRadius: isSignup ? "300px" : "0px",
-            borderTopRightRadius: isSignup ? "0px" : "300px",
-            borderBottomRightRadius: isSignup ? "0px" : "300px",
-            duration: 0.5,
-            ease: "power2.inOut"
-        });
-    }, [isSignup]);
+  useEffect(() => {
+    api.get("/api/auth/config").then((r) => setSignupEnabled(!!r.data.signupEnabled)).catch(() => {});
+  }, []);
 
-    const handleSignupChange = (e) => setSignupData({ ...signupData, [e.target.name]: e.target.value });
-    const handleLoginChange = (e) => setLoginData({ ...loginData, [e.target.name]: e.target.value });
+  useEffect(() => {
+    gsap.to(".shape", {
+      left: isSignup ? "50%" : "0%",
+      borderTopLeftRadius: isSignup ? "300px" : "0px",
+      borderBottomLeftRadius: isSignup ? "300px" : "0px",
+      borderTopRightRadius: isSignup ? "0px" : "300px",
+      borderBottomRightRadius: isSignup ? "0px" : "300px",
+      duration: 0.5,
+      ease: "power2.inOut",
+    });
+  }, [isSignup]);
 
-    const handleSignupSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await axios.post(`${API_URL}/signup`, signupData);
-            const user = response.data.user;
+  if (isAuthenticated()) return <Navigate to={homeFor(getUser())} replace />;
 
-            localStorage.setItem("authToken", response.data.token);
-            localStorage.setItem("user", JSON.stringify(user));
+  const submit = (path, data) => async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const { data: res } = await api.post(`/api/auth/${path}`, data);
+      setSession(res);
+      navigate(homeFor(res.user), { replace: true });
+    } catch (err) {
+      setError(errorMessage(err, path === "login" ? "Login failed" : "Signup failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
 
-            navigate(user.role === "admin" ? "/admin-dashboard" : "/Dashboard"); // ✅ Redirect based on role
-        } catch (error) {
-            console.error("Signup Error:", error.response?.data?.message || error.message);
-            alert(error.response?.data?.message || "Signup failed");
-        }
-    };
+  const toggle = () => { setError(""); setIsSignup(!isSignup); };
 
-    const handleLoginSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await axios.post(`${API_URL}/login`, loginData);
-            const user = response.data.user;
+  return (
+    <div className="main">
+      <h2 className="pos">ONLINE LAB TEST</h2>
+      <div className="login-signup">
+        <div className={`container ${isSignup ? "signup" : ""}`}>
+          <div className="shape">
+            <img className="img0" src={SSSIHL} alt="sssihl" />
+            {signupEnabled ? (
+              <>
+                <p className="h1">{isSignup ? "Already have an account?" : "Don't have an account?"}</p>
+                <p className="toggle" onClick={toggle}>{isSignup ? "Login" : "Sign up"}</p>
+              </>
+            ) : (
+              <p className="h1">Accounts are created by your administrator</p>
+            )}
+          </div>
+          <div className="forms">
+            <form className="form login" onSubmit={submit("login", loginData)}>
+              <h2>Login</h2>
+              <input type="email" name="email" placeholder="Email" required autoComplete="username" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} />
+              <input type="password" name="password" placeholder="Password" required autoComplete="current-password" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} />
+              {!isSignup && error && <p role="alert" style={{ color: "#c0392b", margin: 0 }}>{error}</p>}
+              <button type="submit" disabled={busy}>{busy && !isSignup ? "Signing in…" : "Login"}</button>
+            </form>
 
-            localStorage.setItem("authToken", response.data.token);
-            localStorage.setItem("user", JSON.stringify(user));
-
-            navigate(user.role === "admin" ? "/admin-dashboard" : "/Dashboard"); // ✅ Redirect based on role
-        } catch (error) {
-            console.error("Login Error:", error.response?.data?.message || error.message);
-            alert(error.response?.data?.message || "Login failed");
-        }
-    };
-
-    return (
-        <div className="main">
-            <h2 className="pos">ONLINE LAB TEST</h2>
-            <div className="login-signup">
-                <div className={`container ${isSignup ? "signup" : ""}`}>
-                    <div className="shape">
-                        <img className="img0" src={SSSIHL} alt="sssihl" />
-                        <p className="h1">{isSignup ? "Don't have an account?" : "Already have an account?"}</p>
-                        <p className="toggle" onClick={() => setIsSignup(!isSignup)}>
-                            {isSignup ? "Sign up" : "Login"}
-                        </p>
-                    </div>
-                    <div className="forms">
-                        <form className="form login" onSubmit={handleLoginSubmit}>
-                            <h2>Login</h2>
-                            <input type="email" name="email" placeholder="Email" required value={loginData.email} onChange={handleLoginChange} />
-                            <input type="password" name="password" placeholder="Password" required value={loginData.password} onChange={handleLoginChange} />
-                            <button type="submit">Login</button>
-                        </form>
-
-                        <form className="form signup" onSubmit={handleSignupSubmit}>
-                            <h2>Sign Up</h2>
-                            <input type="text" name="username" placeholder="Username" required value={signupData.username} onChange={handleSignupChange} />
-                            <input type="email" name="email" placeholder="Email" required value={signupData.email} onChange={handleSignupChange} />
-                            <input type="password" name="password" placeholder="Password" required value={signupData.password} onChange={handleSignupChange} />
-                            <button type="submit">Sign Up</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+            {signupEnabled && (
+              <form className="form signup" onSubmit={submit("signup", signupData)}>
+                <h2>Sign Up</h2>
+                <input type="text" name="username" placeholder="Username" required minLength={2} autoComplete="name" value={signupData.username} onChange={(e) => setSignupData({ ...signupData, username: e.target.value })} />
+                <input type="email" name="email" placeholder="Email" required autoComplete="email" value={signupData.email} onChange={(e) => setSignupData({ ...signupData, email: e.target.value })} />
+                <input type="password" name="password" placeholder="Password" required minLength={8} title={PASSWORD_HINT} autoComplete="new-password" value={signupData.password} onChange={(e) => setSignupData({ ...signupData, password: e.target.value })} />
+                <small style={{ color: "#667" }}>{PASSWORD_HINT}</small>
+                {isSignup && error && <p role="alert" style={{ color: "#c0392b", margin: 0 }}>{error}</p>}
+                <button type="submit" disabled={busy}>{busy && isSignup ? "Creating…" : "Sign Up"}</button>
+              </form>
+            )}
+          </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default LoginSignup;

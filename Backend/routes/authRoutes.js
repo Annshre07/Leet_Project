@@ -1,82 +1,60 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const { authMiddleware } = require("../middleware/authMiddleware");
-
-
-require("dotenv").config();
+const { authMiddleware, signToken } = require("../middleware/authMiddleware");
+const { loginLimiter, signupLimiter } = require("../middleware/rateLimit");
+const asyncHandler = require("../utils/asyncHandler");
+const HttpError = require("../utils/httpError");
+const { getConfig } = require("../config/env");
+const { EMAIL_RE, normaliseEmail, passwordProblem, requireString, isStr } = require("../utils/validators");
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "mysecretkey";
+const CI = { locale: "en", strength: 2 }; // case-insensitive lookups also match legacy mixed-case emails
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12);
 
-// Signup Route
-router.post("/signup", async (req, res) => {
-    const { username, email, password } = req.body;
+const session = (user) => ({ token: signToken(user), user: user.toSafeJSON() });
 
-    try {
-        const existingUser = await User.findOne({ email });
-        if (existingUser) return res.status(400).json({ message: "Email already exists" });
+router.get("/config", (req, res) => res.json({ signupEnabled: getConfig().enableSignup }));
 
-        // ✅ If it's the first admin, set role to "admin"
-        let role = "user";  // Default role
-        if (email === "sashankcherukuri7@gmail.com") {
-            const adminExists = await User.findOne({ role: "admin" });
-            if (!adminExists) {
-                role = "admin"; // Make the first admin
-            }
-        }
+router.post("/signup", signupLimiter, asyncHandler(async (req, res) => {
+    if (!getConfig().enableSignup) throw new HttpError(403, "Self-registration is disabled. Ask an administrator for an account.");
+    const username = requireString(req.body.username, "Username", { min: 2, max: 60 }).trim();
+    const email = normaliseEmail(req.body.email);
+    if (!EMAIL_RE.test(email)) throw new HttpError(400, "A valid email is required");
+    const pwProblem = passwordProblem(req.body.password);
+    if (pwProblem) throw new HttpError(400, pwProblem);
 
-        const newUser = new User({ username, email, password, role });
-        await newUser.save();
+    if (await User.findOne({ email }).collation(CI)) throw new HttpError(409, "Email already exists");
 
-        const token = jwt.sign({ id: newUser._id, role: newUser.role }, JWT_SECRET, { expiresIn: "1h" });
-        res.status(201).json({ message: "Signup successful", token, user: { id: newUser._id, username, email, role } });
-    } catch (error) {
-        res.status(500).json({ message: "Server Error", error });
-    }
-});
+    // Role is never taken from the request; admins are created with scripts/createAdmin.js or by another admin.
+    const user = await User.create({ username, email, password: req.body.password, role: "student" });
+    res.status(201).json({ message: "Signup successful", ...session(user) });
+}));
 
-// Login Route
-router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ message: "User not found" });
+router.post("/login", loginLimiter, asyncHandler(async (req, res) => {
+    const email = normaliseEmail(req.body.email);
+    const password = req.body.password;
+    if (!email || !isStr(password)) throw new HttpError(400, "Email and password are required");
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+    const user = await User.findOne({ email }).collation(CI);
+    const ok = user ? await user.comparePassword(password) : (await bcrypt.compare(password, DUMMY_HASH), false);
+    if (!user || !ok) throw new HttpError(401, "Invalid email or password");
+    if (user.isActive === false) throw new HttpError(403, "This account has been deactivated");
 
-        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-        res.status(200).json({ message: "Login successful", token, user: { id: user._id, username: user.username, email: user.email, role: user.role } });
-    } catch (error) {
-        res.status(500).json({ message: "Server Error", error });
-    }
-});
+    res.json({ message: "Login successful", ...session(user) });
+}));
 
-// Promote to Admin Route
-router.post("/promote", authMiddleware, async (req, res) => {
-    try {
-        const { userId } = req.body;
-        const adminEmail = "sashankcherukuri7@gmail.com";
+router.get("/me", authMiddleware, (req, res) => res.json({ user: req.user.toSafeJSON() }));
 
-        const requestingUser = await User.findById(req.user.id);
-        if (requestingUser.email !== adminEmail) {
-            return res.status(403).json({ message: "Unauthorized" });
-        }
-
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        user.role = "admin";
-        await user.save();
-
-        res.json({ message: "User promoted to admin" });
-    } catch (error) {
-        res.status(500).json({ message: "Server error" });
-    }
-});
+router.post("/change-password", authMiddleware, asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    if (!isStr(currentPassword) || !(await req.user.comparePassword(currentPassword))) throw new HttpError(400, "Current password is incorrect");
+    const problem = passwordProblem(newPassword);
+    if (problem) throw new HttpError(400, problem);
+    if (newPassword === currentPassword) throw new HttpError(400, "New password must differ from the current one");
+    req.user.password = newPassword;
+    await req.user.save();
+    res.json({ message: "Password changed", ...session(req.user) });
+}));
 
 module.exports = router;

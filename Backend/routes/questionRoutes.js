@@ -1,144 +1,146 @@
-const express = require('express');
+const express = require("express");
+const Question = require("../models/Question");
+const Submission = require("../models/Submission");
+const { authMiddleware } = require("../middleware/authMiddleware");
+const { requireRole } = require("../middleware/authMiddleware");
+const asyncHandler = require("../utils/asyncHandler");
+const HttpError = require("../utils/httpError");
+const audit = require("../services/audit");
+const { parseDeadline, formatDeadline, startOfTodayIST, isExpired } = require("../utils/time");
+const { requireString, requireObjectId, objectIdRe, isStr } = require("../utils/validators");
+
 const router = express.Router();
-const Question = require('../models/Question');
-const moment = require("moment-timezone");
+const isStaff = (req) => req.role === "admin" || req.role === "teacher";
+const MAX_TESTS = 100;
 
-// Mock admin check middleware
-const isAdmin = (req) => {
-    console.log("🔍 Admin Header:", req.headers['admin']); //  Debug log
-    return req.headers['admin'] === 'true';
-};
-
-// Fetch all questions (Admins see expired ones too)
-router.get('/questions', async (req, res) => {
-    try {
-        const nowIST = moment().tz("Asia/Kolkata").toDate();
-        const isAdminUser = isAdmin(req);
-
-        const query = isAdminUser 
-            ? {} 
-            : {
-                $or: [
-                    { deadline: { $exists: false } },
-                    { deadline: { $gte: nowIST } }
-                ]
-            };  
-
-        const questions = await Question.find(query, '-__v');
-            
-        const formattedQuestions = questions.map(q => ({
-            ...q._doc,
-            deadline: q.deadline 
-                ? moment.utc(q.deadline).tz("Asia/Kolkata").format("YYYY-MM-DD")  // ✅ Convert to YYYY-MM-DD format
-                : null
-        }));
-
-        res.json(formattedQuestions);
-    } catch (error) {
-        console.error("Error fetching questions:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
-    }
+const summary = (q) => ({
+    _id: q._id,
+    title: q.title,
+    difficulty: q.difficulty,
+    language: q.language,
+    tags: q.tags || [],
+    deadline: formatDeadline(q.deadline),
+    testCaseCount: (q.testCases || []).length,
 });
 
-// Fetch a question by title
-router.get('/questions/:title', async (req, res) => {
-    try {
-        const title = decodeURIComponent(req.params.title);
+// Students only ever receive sample (non-hidden) cases. Hidden cases and weights stay on the server.
+const detail = (q, staff) => ({
+    _id: q._id,
+    title: q.title,
+    question: q.question,
+    description: q.description,
+    difficulty: q.difficulty,
+    language: q.language,
+    tags: q.tags || [],
+    timeLimitMs: q.timeLimitMs,
+    memoryLimitMb: q.memoryLimitMb,
+    compareMode: q.compareMode,
+    deadline: formatDeadline(q.deadline),
+    expired: isExpired(q.deadline),
+    createdBy: q.createdBy,
+    testCases: (q.testCases || [])
+        .filter((t) => staff || !t.hidden)
+        .map((t) => (staff ? { _id: t._id, input: t.input, expectedOutput: t.expectedOutput, hidden: !!t.hidden, weight: t.weight ?? 1 } : { input: t.input, expectedOutput: t.expectedOutput })),
+    hiddenTestCount: (q.testCases || []).filter((t) => t.hidden).length,
+});
 
-        // Escape regex characters
-        const escapeRegex = (text) => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-        const regexTitle = new RegExp(`^${escapeRegex(title)}$`, "i");
-
-        const question = await Question.findOne({ title: regexTitle });
-
-        if (!question) {
-            return res.status(404).json({ message: "Question not found" });
+function parseQuestionBody(body, { partial = false } = {}) {
+    const out = {};
+    const need = (k, label, max) => { if (!partial || body[k] !== undefined) out[k] = requireString(body[k], label, { max }).trim(); };
+    need("title", "Title", 200);
+    need("question", "Question", 20000);
+    need("description", "Description", 20000);
+    if (!partial || body.difficulty !== undefined) {
+        if (!["Easy", "Medium", "Hard"].includes(body.difficulty)) throw new HttpError(400, "Difficulty must be Easy, Medium or Hard");
+        out.difficulty = body.difficulty;
+    }
+    if (body.language !== undefined) out.language = isStr(body.language) ? body.language.trim().slice(0, 40) : undefined;
+    if (body.tags !== undefined) {
+        if (!Array.isArray(body.tags) || body.tags.some((t) => !isStr(t))) throw new HttpError(400, "tags must be an array of strings");
+        out.tags = body.tags.map((t) => t.trim()).filter(Boolean).slice(0, 20);
+    }
+    if (body.deadline !== undefined) {
+        const d = parseDeadline(body.deadline || null);
+        if (d === undefined) throw new HttpError(400, "Deadline must be a date in YYYY-MM-DD format");
+        out.deadline = d;
+    }
+    for (const [k, min, max] of [["timeLimitMs", 100, 15000], ["memoryLimitMb", 16, 1024]]) {
+        if (body[k] !== undefined) {
+            const n = Number(body[k]);
+            if (!Number.isFinite(n) || n < min || n > max) throw new HttpError(400, `${k} must be between ${min} and ${max}`);
+            out[k] = n;
         }
-
-        res.json({
-            ...question._doc,
-            deadline: question.deadline 
-                ? moment.utc(question.deadline).tz("Asia/Kolkata").format("YYYY-MM-DD")
-                : null
+    }
+    if (body.compareMode !== undefined) {
+        if (!["trimmed", "tokens"].includes(body.compareMode)) throw new HttpError(400, "compareMode must be trimmed or tokens");
+        out.compareMode = body.compareMode;
+    }
+    if (!partial || body.testCases !== undefined) {
+        const tcs = body.testCases ?? [];
+        if (!Array.isArray(tcs) || tcs.length > MAX_TESTS) throw new HttpError(400, `testCases must be an array of at most ${MAX_TESTS} items`);
+        out.testCases = tcs.map((t, i) => {
+            if (!t || !isStr(t.input ?? "") || !isStr(t.expectedOutput) || !t.expectedOutput.trim()) throw new HttpError(400, `Test case ${i + 1} needs an expected output`);
+            if ((t.input || "").length > 100000 || t.expectedOutput.length > 100000) throw new HttpError(400, `Test case ${i + 1} is too large`);
+            const weight = t.weight === undefined ? 1 : Number(t.weight);
+            if (!Number.isFinite(weight) || weight < 0) throw new HttpError(400, `Test case ${i + 1} has an invalid weight`);
+            return { input: t.input || "", expectedOutput: t.expectedOutput, hidden: !!t.hidden, weight };
         });
-        
-    } catch (error) {
-        console.error("Error fetching question:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-});
+    return out;
+}
 
-// Add a new question
-router.post('/questions', async (req, res) => {
-    try {
-        const { title, question, language, description, difficulty, testCases, deadline } = req.body;
+router.use(authMiddleware);
 
-        if (!title || !question || !description || !difficulty || !language) {
-            return res.status(400).json({ message: 'Title, question, description, language, and difficulty are required' });
-        }
+router.get("/", asyncHandler(async (req, res) => {
+    // Students do not see questions whose deadline day has passed. Legacy rows (midnight) and new rows (end of day) both compare correctly.
+    const query = isStaff(req) ? {} : { $or: [{ deadline: { $exists: false } }, { deadline: null }, { deadline: { $gte: startOfTodayIST() } }] };
+    const questions = await Question.find(query, "title difficulty language tags deadline testCases.hidden createdAt").sort({ createdAt: 1 }).lean();
+    res.json(questions.map(summary));
+}));
 
-        if (testCases && (!Array.isArray(testCases) || testCases.some(tc => !tc.input || !tc.expectedOutput))) {
-            return res.status(400).json({ message: 'Invalid testCases format' });
-        }
+// :key is either a Mongo id or (legacy) a title
+router.get("/:key", asyncHandler(async (req, res) => {
+    const key = decodeURIComponent(req.params.key);
+    const q = objectIdRe.test(key) ? await Question.findById(key) : await Question.findOne({ title: key }).collation({ locale: "en", strength: 2 });
+    if (!q) throw new HttpError(404, "Question not found");
+    res.json(detail(q, isStaff(req)));
+}));
 
-        let deadlineDate = deadline ? moment(deadline, "YYYY-MM-DD").toDate() : null;
+router.post("/", ...requireRole("admin", "teacher"), asyncHandler(async (req, res) => {
+    const data = parseQuestionBody(req.body);
+    if (data.testCases.length === 0) throw new HttpError(400, "At least one test case is required");
+    const q = await Question.create({ ...data, createdBy: req.user._id });
+    await audit(req.user, "problem.created", q._id, { title: q.title });
+    res.status(201).json(detail(q, true));
+}));
 
-        const newQuestion = new Question({
-            title,
-            question,
-            language,
-            description,
-            difficulty,
-            testCases: testCases || [],
-            deadline: deadlineDate
-        });
+router.put("/:id", ...requireRole("admin", "teacher"), asyncHandler(async (req, res) => {
+    requireObjectId(req.params.id, "question id");
+    const q = await Question.findById(req.params.id);
+    if (!q) throw new HttpError(404, "Question not found");
+    if (req.role === "teacher" && String(q.createdBy) !== String(req.user._id)) throw new HttpError(403, "You can only edit problems you created");
+    const data = parseQuestionBody(req.body, { partial: true });
+    if (data.testCases && data.testCases.length === 0) throw new HttpError(400, "At least one test case is required");
+    q.set(data);
+    await q.save();
+    await audit(req.user, "problem.updated", q._id, { fields: Object.keys(data) });
+    res.json(detail(q, true));
+}));
 
-        await newQuestion.save();
-        res.status(201).json(newQuestion);
-    } catch (error) {
-        console.error("Error saving question:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+router.delete("/:id", ...requireRole("admin"), asyncHandler(async (req, res) => {
+    requireObjectId(req.params.id, "question id");
+    const q = await Question.findById(req.params.id);
+    if (!q) throw new HttpError(404, "Question not found");
+    const subs = await Submission.countDocuments({ questionId: q._id });
+    if (subs > 0 && req.query.force !== "true") {
+        throw new HttpError(409, `This question has ${subs} submission(s). Deleting it also deletes them.`, { submissions: subs });
     }
-});
-
-// Delete a question by ID (Only Admins)
-router.delete('/questions/:id', async (req, res) => {
-    try {
-        if (!isAdmin(req)) {
-            console.log("❌ Admin access denied");
-            return res.status(403).json({ message: "Access Denied. Only admins can delete questions." });
-        }
-
-        const questionId = req.params.id;
-        console.log("🔍 Attempting to delete question with ID:", questionId);
-
-        if (!questionId.match(/^[0-9a-fA-F]{24}$/)) {
-            console.log("❌ Invalid question ID format");
-            return res.status(400).json({ message: "Invalid question ID format" });
-        }
-
-        const question = await Question.findById(questionId);
-        console.log("🔍 Found question:", question);
-
-        if (!question) {
-            console.log("❌ Question not found");
-            return res.status(404).json({ message: "Question not found" });
-        }
-
-        const deleteResult = await Question.deleteOne({ _id: questionId });
-        console.log("✅ Delete Result:", deleteResult);
-
-        if (deleteResult.deletedCount === 0) {
-            return res.status(500).json({ message: "❌ Deletion failed" });
-        }
-
-        res.json({ message: "✅ Question deleted successfully" });
-
-    } catch (error) {
-        console.error("❌ Error deleting question:", error);
-        res.status(500).json({ message: "❌ Internal Server Error", error: error.message });
-    }
-});
-
+    await Submission.deleteMany({ questionId: q._id });
+    await q.deleteOne();
+    await audit(req.user, "problem.deleted", q._id, { title: q.title, submissionsDeleted: subs });
+    res.json({ message: "Question deleted", submissionsDeleted: subs });
+}));
 
 module.exports = router;
+module.exports.detail = detail;
+module.exports.parseQuestionBody = parseQuestionBody;
