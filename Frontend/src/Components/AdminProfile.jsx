@@ -1,128 +1,96 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import {
-  Button, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TablePagination
-} from "@mui/material";
+import { Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, TextField, Select, MenuItem, Alert } from "@mui/material";
+import api, { errorMessage } from "../api/client";
+import { getUser } from "../auth/session";
 import "../Utils/AdminProfile.css";
 
+const ROLES = ["student", "teacher", "admin"];
+
 const AdminProfile = () => {
-  const [users, setUsers] = useState([]);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const me = getUser();
   const navigate = useNavigate();
-  const token = localStorage.getItem("authToken");
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const adminEmail = "sashankcherukuri7@gmail.com";
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-
-      try {
-        const response = await axios.get("http://localhost:5000/api/admin/users", {
-          headers: {
-            Authorization: `Bearer ${token}`, // Send token in request
-          },
-        });
-
-        setUsers(response.data); // Update state with fetched users
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
-    };
-
-    fetchUsers();
-  });
-
-  // Promote a user to admin
-  const handleMakeAdmin = async (userId) => {
+  const load = useCallback(async () => {
     try {
-      const token = localStorage.getItem("authToken"); // Retrieve token
-  
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/promote",
-        { userId },
-        {
-          headers: { Authorization: `Bearer ${token}` }, // Pass token for authentication
-        }
-      );
-  
-      alert(response.data.message);
-      setUsers(users.map(user =>
-        user._id === userId ? { ...user, role: "admin" } : user
-      ));
-    } catch (error) {
-      console.error("Error promoting user:", error);
-      alert(error.response?.data?.message || "Failed to promote user");
+      const { data } = await api.get("/api/admin/users", { params: { page: page + 1, limit: rowsPerPage, search: query || undefined } });
+      setRows(data.items);
+      setTotal(data.total);
+      setError("");
+    } catch (e) {
+      setError(errorMessage(e, "Could not load users"));
     }
+  }, [page, rowsPerPage, query]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const act = async (fn, okText) => {
+    try { await fn(); setNotice(okText); setError(""); await load(); }
+    catch (e) { setNotice(""); setError(errorMessage(e)); }
   };
-  
+  const setRole = (u, role) => act(() => api.patch(`/api/admin/users/${u._id}/role`, { role }), `${u.username} is now ${role}`);
+  const setActive = (u, isActive) => act(() => api.patch(`/api/admin/users/${u._id}/active`, { isActive }), `${u.username} ${isActive ? "activated" : "deactivated"}`);
 
   return (
     <div className="admin-container">
       <h2 className="admin-title">Admin Profile</h2>
-      
-      {/* Admin Information */}
       <div className="admin-info">
-        <p><strong>Username:</strong> sashank</p>
-        <p><strong>Email:</strong> {adminEmail}</p>
-        <p><strong>Role:</strong> admin</p>
+        <p><strong>Username:</strong> {me?.username}</p>
+        <p><strong>Email:</strong> {me?.email}</p>
+        <p><strong>Role:</strong> {me?.role}</p>
       </div>
 
-      {/* Users Table */}
-      <h3 className="admin-title">Promote Users</h3>
+      <h3 className="admin-title">Users</h3>
+      <form onSubmit={(e) => { e.preventDefault(); setPage(0); setQuery(search.trim()); }} style={{ display: "flex", gap: 8, margin: "8px 0" }}>
+        <TextField size="small" label="Search name or email" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Button type="submit" variant="contained">Search</Button>
+      </form>
+      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+      {notice && <Alert severity="success" sx={{ mb: 1 }}>{notice}</Alert>}
+
       <TableContainer component={Paper} className="table-container">
         <Table stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell className="table-header">Username</TableCell>
-              <TableCell className="table-header">Email</TableCell>
-              <TableCell className="table-header">Role</TableCell>
-              <TableCell className="table-header">Actions</TableCell>
+              {["Username", "Email", "Role", "Status", "Actions"].map((h) => <TableCell key={h} className="table-header">{h}</TableCell>)}
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((user) => (
-              <TableRow key={user._id} className="table-row">
-                <TableCell>{user.username}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>
-                  {user.role !== "admin" && (
-                    <Button
-                      className="make-admin-btn"
-                      onClick={() => handleMakeAdmin(user._id)}
-                    >
-                      Make Admin
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {rows.map((u) => {
+              const isMe = u._id === me?.id;
+              return (
+                <TableRow key={u._id} className="table-row">
+                  <TableCell>{u.username}</TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell>
+                    <Select size="small" value={u.role} disabled={isMe} onChange={(e) => setRole(u, e.target.value)} inputProps={{ "aria-label": `Role of ${u.username}` }}>
+                      {ROLES.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                    </Select>
+                  </TableCell>
+                  <TableCell>{u.isActive ? "Active" : "Deactivated"}</TableCell>
+                  <TableCell>
+                    <Button size="small" disabled={isMe} onClick={() => setActive(u, !u.isActive)}>{u.isActive ? "Deactivate" : "Activate"}</Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {rows.length === 0 && <TableRow><TableCell colSpan={5}>No users found.</TableCell></TableRow>}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {/* Pagination */}
-      <TablePagination
-        className="pagination"
-        rowsPerPageOptions={[5, 10, 25]}
-        component="div"
-        count={users.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={(_, newPage) => setPage(newPage)}
-        onRowsPerPageChange={(event) => {
-          setRowsPerPage(+event.target.value);
-          setPage(0);
-        }}
-      />
+      <TablePagination className="pagination" rowsPerPageOptions={[5, 10, 25, 50]} component="div" count={total} rowsPerPage={rowsPerPage} page={page}
+        onPageChange={(_, p) => setPage(p)} onRowsPerPageChange={(e) => { setRowsPerPage(+e.target.value); setPage(0); }} />
 
-      {/* Back to Dashboard */}
-      <button className="back-btn" onClick={() => navigate("/Dashboard")}>
-        Back to Dashboard
-      </button>
+      <button className="back-btn" onClick={() => navigate("/admin-dashboard")}>Back to Dashboard</button>
     </div>
   );
 };
